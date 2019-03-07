@@ -45,13 +45,12 @@ Please download the installer package from:
 ## Compiling
 hivefs is written in Go, so here’s how to get going:
 ```
-git clone https://github.com/elastos/Elastos.NET.Hive.Demo.FuseApp.git  $GOPATH/src/$ github.com/elastos/Elastos.NET.Hive.Demo.FuseApp
+git clone https://github.com/elastos/Elastos.NET.Hive.Demo.FuseApp.git  $GOPATH/src/github.com/elastos/Elastos.NET.Hive.Demo.FuseApp
 
 cd $GOPATH/src/github.com/elastos/Elastos.NET.Hive.Demo.FuseApp
-
+go get
 make
 ```
-
 ## Usage
 
 **hivefs** is a command line program that need to run in background. The usage is below:
@@ -68,6 +67,8 @@ for example:
 ```
 $ ./hivefs -host 127.0.0.1 -port 9095 -uid uid-ee978fa7-18b6-43d4-9f3e-3e6562131036 /mnt
 ```
+
+While the hivefs daemon runs in the background, please open a new terminal window and go to the mounted directory for your testing.
 
 ## Contribution
 
