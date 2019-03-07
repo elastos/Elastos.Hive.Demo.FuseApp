@@ -16,9 +16,40 @@ for instance:
 * You can use it to mount hive.cluster as a local disk driver or directory.
 * You can read/write on the mounted like as on local file system.
 
+### Background
+- [FUSE](https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/filesystems/fuse.txt)
+(Filesystem In Userpace) is a Linux kernel filesystem that sends the
+incoming requests over a file descriptor to userspace. Historically,
+these have been served with a
+[C library of the same name](http://fuse.sourceforge.net/), but
+ultimately FUSE is just a protocol. Since then, the protocol has been
+implemented for other platforms such as OS X, FreeBSD and OpenBSD.
+
+- hivefs is fuse app/client, it uses the library [bazil.org/fuse](http://bazil.org/fuse), which is a reimplementation of that
+protocol in pure Go.
+
+## Pre-Requirements
+
+In order to run this app, FUSE installation is needed.
+
+Ubuntu Linux:
+```
+sudo apt-get update
+sudo apt-get install fuse
+```
+
+macOS:  
+Please download the installer package from:
+[https://github.com/osxfuse/osxfuse/releases](https://github.com/osxfuse/osxfuse/releases)
+
+## Compiling
 hivefs is written in Go, so here’s how to get going:
 ```
-go get github.com/elastos/Elastos.NET.Hive.Demo.FuseApp
+git clone https://github.com/elastos/Elastos.NET.Hive.Demo.FuseApp.git  $GOPATH/src/$ github.com/elastos/Elastos.NET.Hive.Demo.FuseApp
+
+cd $GOPATH/src/github.com/elastos/Elastos.NET.Hive.Demo.FuseApp
+
+make
 ```
 
 ## Usage
@@ -35,7 +66,7 @@ go get github.com/elastos/Elastos.NET.Hive.Demo.FuseApp
 
 for example:
 ```
-$ ./hivefs -host 127.0.0.1 -port 9096 -uid uid-ee978fa7-18b6-43d4-9f3e-3e6562131036 /mnt
+$ ./hivefs -host 127.0.0.1 -port 9095 -uid uid-ee978fa7-18b6-43d4-9f3e-3e6562131036 /mnt
 ```
 
 ## Contribution
