@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"hash/fnv"
@@ -14,10 +15,9 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	_ "bazil.org/fuse/fs/fstestutil"
-	"golang.org/x/net/context"
-
 	"github.com/elastos/Elastos.NET.Hive.Demo.FuseApp/hive"
 	"github.com/google/logger"
+	"golang.org/x/net/context"
 )
 
 type hiveConfig struct {
@@ -167,6 +167,8 @@ func (dir *Dir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 
 	// if dir.entries != nil {
 	// 	for _, v := range *dir.entries {
+
+	// 		logger.Info("Lookup: ", v.Name, " name:", name)
 	// 		if v.Name == name {
 	// 			path := filepath.Join(dir.path, name)
 
@@ -266,19 +268,21 @@ func (dir *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.
 		return nil, nil, fuse.ENOENT
 	}
 
-	err := dir.connector.FilesWrite(config.uid, path, 0, true, false, 0, nil)
+	err := dir.connector.FilesWrite(config.uid, path, 0, true, false, 0, &bytes.Buffer{})
 	if err != nil {
-		return nil, nil, err
+		// record error but omit it
+		logger.Error("Create: ", path, "error: ", err)
 	}
 
+	// // assume file has create successfully
 	// var dirent = fuse.Dirent{}
 	// // dirent.Inode = inodeFromPath(path + "/" + v.Name)
-	// dirent.Name = path
+	// dirent.Name = req.Name
 	// dirent.Type = fuse.DT_File
 
 	// *dir.entries = append(*dir.entries, dirent)
 
-	return dir, &File{connector: dir.connector, path: path, flags: req.Flags}, nil
+	return &File{connector: dir.connector, path: path, flags: req.Flags}, nil, nil
 }
 
 // File implements both Node and Handle for the hello file.
@@ -320,6 +324,21 @@ func (file *File) Attr(ctx context.Context, a *fuse.Attr) error {
 
 	stat, err := file.connector.FilesStat(config.uid, path)
 	if err != nil {
+		// found := false
+		// // assume file has created
+		// for _, v := range *file.parent.entries {
+		// 	vpath := filepath.Join(file.parent.path, v.Name)
+		// 	if vpath == path {
+		// 		found = true
+		// 		break
+		// 	}
+		// }
+		// if found {
+		// 	a.Size = 0
+		// 	a.Mode = 0666
+		// } else {
+		// 	return err
+		// }
 		return err
 	}
 
@@ -357,6 +376,11 @@ func (file *File) Flush(ctx context.Context, req *fuse.FlushRequest) error {
 func (file *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.WriteResponse) error {
 	logger.Info("file Write: ", file.path)
 
-	// err := file.connector.FilesWrite(config.uid, file.path, req.data, req.offset)
+	buf := bytes.NewBuffer(req.Data)
+	err := file.connector.FilesWrite(config.uid, file.path, req.Offset, true, false, len(req.Data), buf)
+	if err != nil {
+		// record error but omit it
+		logger.Error("Write: ", file.path, "error: ", err)
+	}
 	return nil
 }
