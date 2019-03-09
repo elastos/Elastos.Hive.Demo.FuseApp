@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"sync"
@@ -247,10 +248,10 @@ func checkResponse(path string, code int, body []byte) error {
 	var ipfsErr ipfsError
 
 	if body != nil && json.Unmarshal(body, &ipfsErr) == nil {
-		return fmt.Errorf("IPFS unsuccessful: %d: %s", code, ipfsErr.Message)
+		return fmt.Errorf("Hive unsuccessful: %d: %s", code, ipfsErr.Message)
 	}
 	// No error response with useful message from ipfs
-	return fmt.Errorf("IPFS-post '%s' unsuccessful: %d: %s", path, code, body)
+	return fmt.Errorf("Hive-post '%s' unsuccessful: %d: %s", path, code, body)
 }
 
 // postCtx makes a POST request against
@@ -501,22 +502,19 @@ func (ipfs *Connector) FileLs(path string) (respFilesLs, error) {
 	return lsrsp, nil
 }
 
-/*
 // file flushs
-func (ipfs *Connector) FilesFlush(l []string) error {
+func (ipfs *Connector) FilesFlush(uid string, path string) error {
 	ctx, cancel := context.WithTimeout(ipfs.ctx, HiveRequestTimeout)
 	defer cancel()
-	url := "files/flush?arg=" + "/nodes/" + l[0] + l[1]
+	url := "files/flush?uid=" + uid + "&path=" + path
 
 	_, err := ipfs.postCtx(ctx, url, "", nil)
 	if err != nil {
 		logger.Error(err)
-		return hiveError(err, l[0])
 	}
 
 	return nil
 }
-*/
 
 // list file or directory
 func (ipfs *Connector) FilesLs(uid string, path string) (respFilesLs, error) {
@@ -634,20 +632,28 @@ func (ipfs *Connector) FilesStat(uid string, path string) (respFilesStat, error)
 }
 
 // write file
-func (ipfs *Connector) FilesWrite(uid string, path string, offset uint64, create bool, truncate bool, count uint64, reader io.Reader) error {
+func (ipfs *Connector) FilesWrite(uid string, path string, offset int64, create bool, truncate bool, count int, byteBuf *bytes.Buffer) error {
 	ctx, cancel := context.WithTimeout(ipfs.ctx, HiveRequestTimeout)
 	defer cancel()
 
 	url := "files/write?uid=" + uid + "&path=" + path
 	url = url + fmt.Sprintf("&offset=%d&create=%t&truncate=%t&count=%d", offset, create, truncate, count)
 
-	contentType := ""
-	if reader != nil {
-		contentType = "multipart/form-data"
-	}
-	_, err := ipfs.postCtx(ctx, url, contentType, reader)
+	var bufReader bytes.Buffer
+	writer := multipart.NewWriter(&bufReader)
+	fileWriter, err := writer.CreateFormFile("file", "upload")
 	if err != nil {
-		logger.Error(err)
+		return err
+	}
+
+	io.Copy(fileWriter, byteBuf)
+	contentType := writer.FormDataContentType()
+	writer.Close()
+
+	_, err = ipfs.postCtx(ctx, url, contentType, &bufReader)
+	if err != nil {
+		// record error but omit it
+		logger.Error("Write: ", path, " error: ", err)
 	}
 
 	return nil
