@@ -114,7 +114,6 @@ func (fs *FS) Root() (fs.Node, error) {
 	return n, nil
 }
 
-// Dir implements both Node and Handle for the root directory.
 type Dir struct {
 	connector *hive.Connector
 	path      string
@@ -127,6 +126,8 @@ var (
 	_ fs.NodeMkdirer        = (*Dir)(nil)
 	_ fs.NodeRemover        = (*Dir)(nil)
 	_ fs.NodeCreater        = (*Dir)(nil)
+	_ fs.NodeRenamer        = (*Dir)(nil)
+	_ fs.NodeOpener         = (*Dir)(nil)
 )
 
 func (dir *Dir) Attr(ctx context.Context, a *fuse.Attr) error {
@@ -138,9 +139,20 @@ func (dir *Dir) Attr(ctx context.Context, a *fuse.Attr) error {
 		return nil
 	}
 
-	// assume dir stat is OK
-	// a.Inode = inodeFromPath(dir.path)
-	a.Mode = os.ModeDir | 0755
+	stat, err := dir.connector.FilesStat(config.uid, dir.path)
+	if err != nil {
+		return fuse.ENOENT
+	}
+
+	if stat.Type == "file" {
+		// a.Inode = inodeFromPath(path)
+		a.Size = stat.Size
+		a.Mode = 0666
+	} else if stat.Type == "directory" {
+		// assume dir stat is OK
+		// a.Inode = inodeFromPath(dir.path)
+		a.Mode = os.ModeDir | 0755
+	}
 
 	return nil
 }
@@ -197,6 +209,10 @@ func (dir *Dir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	if err != nil {
 		return dirents, err
 	}
+
+	// append dummy dir: .. and .
+	dirents = append(dirents, fuse.Dirent{Name: "..", Type: fuse.DT_Dir})
+	dirents = append(dirents, fuse.Dirent{Name: ".", Type: fuse.DT_Dir})
 
 	for _, v := range dirs.Entries {
 		var dirent = fuse.Dirent{}
@@ -255,7 +271,7 @@ func (dir *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.
 		// TODO:
 	}
 
-	if req.Flags&fuse.OpenAppend != 0 {
+	if req.Flags&fuse.OpenCreate != 0 {
 		// TODO:
 	}
 
@@ -285,6 +301,47 @@ func (dir *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.
 	handle := node
 
 	return node, handle, nil
+}
+
+func (dir *Dir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fs.Node) error {
+	newDir2, ok := newDir.(*Dir)
+	if !ok {
+		return fuse.EIO
+	}
+
+	oldPath := filepath.Join(dir.path, req.OldName)
+	newPath := filepath.Join(newDir2.path, req.NewName)
+
+	logger.Info("file Rename: ", oldPath, " -> ", newPath)
+
+	err := dir.connector.FilesMv(config.uid, oldPath, newPath)
+	if err == nil {
+		// oldEntries := *dir.entries
+		// newEntries := *newDir2.entries
+		// for k, dirent := range oldEntries {
+		// 	if dirent.Name == req.OldName {
+		// 		newEntries = append(newEntries, dirent)
+		// 		newDir2.entries = &newEntries
+
+		// 		oldEntries = append(oldEntries[:k], oldEntries[k+1:]...)
+		// 		dir.entries = &oldEntries
+
+		// 		break
+		// 	}
+		// }
+	}
+
+	return err
+}
+
+func (dir *Dir) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
+	logger.Info("Open: ", dir.path)
+
+	if req.Dir {
+		return &Dir{connector: dir.connector, path: dir.path}, nil
+	} else {
+		return &File{connector: dir.connector, path: dir.path}, nil
+	}
 }
 
 // File implements both Node and Handle for the hello file.
@@ -362,13 +419,6 @@ func (file *File) ReadAll(ctx context.Context) ([]byte, error) {
 	return data, err
 }
 
-var _ fs.NodeRenamer = (*File)(nil)
-
-func (file *File) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fs.Node) error {
-	logger.Info("file Rename: ", file.path)
-	return nil
-}
-
 func (file *File) Flush(ctx context.Context, req *fuse.FlushRequest) error {
 	logger.Info("file Flush: ", file.path)
 
@@ -379,7 +429,11 @@ func (file *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.
 	logger.Info("file Write: ", file.path)
 
 	buf := bytes.NewBuffer(req.Data)
-	err := file.connector.FilesWrite(config.uid, file.path, req.Offset, true, false, len(req.Data), buf)
+	truncate := true
+	if req.Offset > 0 {
+		truncate = false
+	}
+	err := file.connector.FilesWrite(config.uid, file.path, req.Offset, true, truncate, len(req.Data), buf)
 	if err != nil {
 		// record error but omit it
 		logger.Error("Write: ", file.path, "error: ", err)
