@@ -33,7 +33,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s -host <host> -port <port number> -uid <uid> MOUNTPOINT\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "For example:\n")
-	fmt.Fprintf(os.Stderr, "  %s -host 127.0.0.1 -port 9096 -uid uid-ee978fa7-18b6-43d4-9f3e-3e6562131036 MOUNTPOINT\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -host 127.0.0.1 -port 9095 -uid uid-ee978fa7-18b6-43d4-9f3e-3e6562131036 MOUNTPOINT\n", os.Args[0])
 }
 
 func initArgs() {
@@ -281,8 +281,10 @@ func (dir *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.
 	// dirent.Type = fuse.DT_File
 
 	// *dir.entries = append(*dir.entries, dirent)
+	node := &File{connector: dir.connector, path: path, flags: req.Flags}
+	handle := node
 
-	return &File{connector: dir.connector, path: path, flags: req.Flags}, nil, nil
+	return node, handle, nil
 }
 
 // File implements both Node and Handle for the hello file.
@@ -382,5 +384,7 @@ func (file *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.
 		// record error but omit it
 		logger.Error("Write: ", file.path, "error: ", err)
 	}
+	resp.Size = len(req.Data)
+
 	return nil
 }
