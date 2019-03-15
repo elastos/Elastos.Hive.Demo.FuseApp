@@ -560,15 +560,14 @@ func (ipfs *Connector) FilesMkdir(uid string, path string, parents bool) error {
 }
 
 // move files
-func (ipfs *Connector) FilesMv(mv []string) error {
+func (ipfs *Connector) FilesMv(uid string, path string, dest string) error {
 	ctx, cancel := context.WithTimeout(ipfs.ctx, HiveRequestTimeout)
 	defer cancel()
-	url := "files/mv?arg=" + "/nodes/" + mv[0] + mv[1] + "&arg=" + "/nodes/" + mv[0] + mv[2]
+	url := "files/mv?uid=" + uid + "&source=" + path + "&dest=" + dest
 
 	_, err := ipfs.postCtx(ctx, url, "", nil)
 	if err != nil {
 		logger.Error(err)
-		return hiveError(err, mv[0])
 	}
 
 	return nil
